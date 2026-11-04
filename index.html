@@ -82,6 +82,10 @@
     padding: 0;
   }
   .leaflet-tooltip.term-label::before { display: none; }
+
+  @keyframes blinkArea { 0%,100% { opacity: .9; } 50% { opacity: .1; } }
+  .blink { animation: blinkArea 1.1s infinite; }
+  #map.drawing { cursor: crosshair; }
 </style>
 </head>
 <body>
@@ -101,6 +105,7 @@
     </div>
   </div>
   <button class="btn" id="btn-quiz" onclick="toggleQuiz()">🎯 Quiz</button>
+  <button class="btn" id="btn-draw" onclick="toggleDraw()">✏️ Zeichnen</button>
 </header>
 
 <div id="map">
@@ -385,6 +390,7 @@ function toggleQuiz() {
   document.getElementById("quiz-banner").style.display = quizActive ? "block" : "none";
   document.getElementById("score-panel").style.display = quizActive ? "block" : "none";
   if (quizActive) {
+    if (drawActive) toggleDraw();
     setLayersInteractive(false);
     setLabels(false);
     nextQuestion();
@@ -450,7 +456,153 @@ function handleAnswer(latlng) {
   setTimeout(() => { if (quizActive) nextQuestion(); }, 3200);
 }
 
-map.on("click", e => handleAnswer(e.latlng));
+map.on("click", e => {
+  if (drawActive) { if (drawPhase === "result") nextDrawTerm(); return; }
+  handleAnswer(e.latlng);
+});
+
+// ================= ZEICHNEN-MODUS =================
+let drawActive = false, drawPhase = "idle", drawing = false, drawPts = [];
+let drawLine = null, userPoly = null, solPoly = null;
+
+function drawPool() {
+  const pool = [];
+  if (catActive("A")) GROSSRAEUME.filter(g => g.poly).forEach(g => pool.push({ name: g.name, art: "den Großraum", ring: g.poly }));
+  if (catActive("B")) GEWAESSER.filter(g => g.poly).forEach(g => pool.push({ name: g.name, art: "den See", ring: g.poly }));
+  if (catActive("D")) GEBIRGE.forEach(g => pool.push({ name: g.name, art: "das Gebirge", ring: g.poly }));
+  return pool;
+}
+
+function toggleDraw() {
+  drawActive = !drawActive;
+  document.getElementById("btn-draw").classList.toggle("active", drawActive);
+  document.getElementById("btn-draw").textContent = drawActive ? "⏹️ Zeichnen beenden" : "✏️ Zeichnen";
+  document.getElementById("quiz-banner").style.display = drawActive ? "block" : "none";
+  if (drawActive) {
+    if (quizActive) toggleQuiz();
+    setLayersInteractive(false);
+    Object.values(layers).flat().forEach(o => map.removeLayer(o));
+    map.dragging.disable();
+    nextDrawTerm();
+  } else {
+    clearDrawLayers();
+    map.dragging.enable();
+    document.getElementById("quiz-banner").style.display = "none";
+    setLayersInteractive(true);
+    ["A","B","C","D","E"].forEach(k => {
+      if (catActive(k)) layers[k].forEach(o => {
+        if (o.isSeaLabel && !labelsOn) return;
+        o.addTo(map);
+        if (!labelsOn) o.closeTooltip();
+      });
+    });
+    drawPhase = "idle";
+  }
+}
+
+function clearDrawLayers() {
+  [drawLine, userPoly, solPoly].forEach(l => { if (l) map.removeLayer(l); });
+  drawLine = userPoly = solPoly = null;
+}
+
+function nextDrawTerm() {
+  clearDrawLayers();
+  const pool = drawPool();
+  drawPhase = "draw";
+  if (!pool.length) {
+    document.getElementById("quiz-question").textContent = "⚠️ Keine zeichnenbare Kategorie aktiv (A, B-Seen oder D)!";
+    document.getElementById("quiz-result").textContent = "";
+    return;
+  }
+  const t = pool[Math.floor(Math.random() * pool.length)];
+  currentDraw = t;
+  document.getElementById("quiz-question").textContent = `✏️ Zeichne ${t.art} „${t.name}“ – mit gedrückter Maus/Finger flächig malen!`;
+  document.getElementById("quiz-result").textContent = "";
+  document.getElementById("quiz-score").textContent = "Bei Fertigstellung loslassen – Klick danach = nächste Aufgabe";
+}
+let currentDraw = null;
+
+function drawStart(latlng) {
+  if (!drawActive || drawPhase !== "draw") return;
+  drawing = true;
+  drawPts = [latlng];
+  if (drawLine) map.removeLayer(drawLine);
+  drawLine = L.polyline(drawPts, { color: "#e53935", weight: 3, dashArray: "6 6" }).addTo(map);
+}
+
+function drawMove(latlng) {
+  if (!drawing || !drawLine) return;
+  const last = drawPts[drawPts.length - 1];
+  if (last && map.distance(last, latlng) < 30000) return; // min. ~30 km Abstand
+  drawPts.push(latlng);
+  drawLine.setLatLngs(drawPts);
+}
+
+function drawEnd() {
+  if (!drawing) return;
+  drawing = false;
+  suppressNextUntil = Date.now() + 500;
+  if (drawPts.length < 3) { drawPts = []; if (drawLine) map.removeLayer(drawLine); drawLine = null; return; }
+  drawPhase = "result";
+  const ring = drawPts.map(p => [p.lat, p.lng]);
+  userPoly = L.polygon(ring, { color: "#e53935", weight: 2, fillOpacity: .25 }).addTo(map);
+  evaluateDraw(ring, currentDraw);
+}
+
+function evaluateDraw(userRing, t) {
+  const sol = t.ring;
+  let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+  userRing.concat(sol).forEach(p => {
+    minLat = Math.min(minLat, p[0]); maxLat = Math.max(maxLat, p[0]);
+    minLng = Math.min(minLng, p[1]); maxLng = Math.max(maxLng, p[1]);
+  });
+  const N = 60;
+  let inter = 0, union = 0;
+  for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) {
+    const lat = minLat + (maxLat - minLat) * i / N;
+    const lng = minLng + (maxLng - minLng) * j / N;
+    const inUser = pointInPoly(lat, lng, userRing), inSol = pointInPoly(lat, lng, sol);
+    if (inUser || inSol) union++;
+    if (inUser && inSol) inter++;
+  }
+  const pct = union ? Math.round(inter / union * 100) : 0;
+  const res = document.getElementById("quiz-result");
+  let cls, msg;
+  if (pct >= 60) { cls = "good"; msg = `🏆 ${pct}% Übereinstimmung – stark! Das ist ${t.name}.`; }
+  else if (pct >= 35) { cls = "ok"; msg = `✅ ${pct}% Übereinstimmung – gut getroffen!`; }
+  else if (pct >= 18) { cls = "ok"; msg = `🙂 ${pct}% – richtige Richtung, aber noch zu klein/fals platziert.`; }
+  else { cls = "bad"; msg = `❓ ${pct}% – schau dir die grüne Fläche an: So liegt ${t.name}.`; }
+  res.className = "result " + cls;
+  res.textContent = msg;
+  document.getElementById("quiz-score").textContent = "Klick auf die Karte = nächste Aufgabe";
+
+  solPoly = L.polygon(sol, { color: "#2e7d32", weight: 3, fillOpacity: .25 }).addTo(map);
+  const el = solPoly.getElement();
+  if (el) el.classList.add("blink");
+  map.fitBounds(L.latLngBounds(sol).pad(0.3), { animate: true });
+}
+
+// Maus-Zeichnen
+map.on("mousedown", e => drawStart(e.latlng));
+map.on("mousemove", e => drawMove(e.latlng));
+map.on("mouseup", drawEnd);
+// Touch-Zeichnen
+const mapContainer = map.getContainer();
+mapContainer.addEventListener("touchstart", e => {
+  if (!drawActive) return;
+  e.preventDefault();
+  const rect = mapContainer.getBoundingClientRect();
+  const t = e.touches[0];
+  drawStart(map.containerPointToLatLng(L.point(t.clientX - rect.left, t.clientY - rect.top)));
+}, { passive: false });
+mapContainer.addEventListener("touchmove", e => {
+  if (!drawActive) return;
+  e.preventDefault();
+  const rect = mapContainer.getBoundingClientRect();
+  const t = e.touches[0];
+  drawMove(map.containerPointToLatLng(L.point(t.clientX - rect.left, t.clientY - rect.top)));
+}, { passive: false });
+mapContainer.addEventListener("touchend", e => { if (drawActive) drawEnd(); });
 
 // ================= SUCHE =================
 const CAT_NAMES = { A:"Großraum", B:"Gewässer", C:"Meeresteil", D:"Gebirge", E:"Stadt" };
