@@ -328,13 +328,17 @@ let quizActive = false, current = null, locked = false, answerMarker = null;
 const score = { good: 0, ok: 0, bad: 0, total: 0 };
 const overlay = document.getElementById("quiz-overlay");
 
+function catActive(key) {
+  return document.getElementById("btn-" + key).classList.contains("active");
+}
+
 function quizPool() {
   const pool = [];
-  GROSSRAEUME.forEach(g => pool.push({ name: g.name, koord: g.koord, art: "der Großraum" }));
-  GEWAESSER.forEach(g => pool.push({ name: g.name, koord: g.path ? g.path[Math.floor(g.path.length/2)] : g.koord, art: g.path ? "der Fluss" : "der See" }));
-  MEERE.forEach(m => pool.push({ name: m.name, koord: m.koord, art: "der Meeresteil" }));
-  GEBIRGE.forEach(g => pool.push({ name: g.name, koord: g.koord, art: "das Gebirge" }));
-  STAEDTE.forEach(s => pool.push({ name: s.name, koord: s.koord, art: "die Stadt" }));
+  if (catActive("A")) GROSSRAEUME.forEach(g => pool.push({ name: g.name, koord: g.koord, art: "der Großraum" }));
+  if (catActive("B")) GEWAESSER.forEach(g => pool.push({ name: g.name, koord: g.path ? g.path[Math.floor(g.path.length/2)] : g.koord, art: g.path ? "der Fluss" : "der See" }));
+  if (catActive("C")) MEERE.forEach(m => pool.push({ name: m.name, koord: m.koord, art: "der Meeresteil" }));
+  if (catActive("D")) GEBIRGE.forEach(g => pool.push({ name: g.name, koord: g.koord, art: "das Gebirge" }));
+  if (catActive("E")) STAEDTE.forEach(s => pool.push({ name: s.name, koord: s.koord, art: "die Stadt" }));
   return pool;
 }
 
@@ -359,6 +363,14 @@ function toggleQuiz() {
 function nextQuestion() {
   const pool = quizPool();
   if (answerMarker) { map.removeLayer(answerMarker); answerMarker = null; }
+  overlay.style.display = "none";
+  if (!pool.length) {
+    current = null;
+    document.getElementById("quiz-question").textContent = "⚠️ Keine Kategorie aktiv – bitte oben mind. eine (A–E) aktivieren!";
+    document.getElementById("quiz-result").textContent = "";
+    document.getElementById("quiz-score").textContent = "";
+    return;
+  }
   current = pool[Math.floor(Math.random() * pool.length)];
   locked = false;
   setLabels(false);
