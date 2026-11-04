@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Geografie-Lernkarte: Nordamerika (58 Begriffe)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #f0f4f8; display: flex; flex-direction: column; height: 100vh; }
+
+  header {
+    background: #1e3a5f; color: white; padding: 10px 16px;
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    box-shadow: 0 2px 6px rgba(0,0,0,.2); z-index: 1000;
+  }
+  header h1 { font-size: 1.05rem; margin-right: auto; }
+
+  .btn {
+    border: none; border-radius: 6px; padding: 7px 12px; cursor: pointer;
+    font-size: .8rem; font-weight: 600; background: #ffffff22; color: white;
+    transition: background .15s;
+  }
+  .btn:hover { background: #ffffff3d; }
+  .btn.active { background: #4a9dec; }
+
+  #map { flex: 1; z-index: 1; }
+
+  #quiz-banner {
+    display: none; position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+    z-index: 900; background: #1e3a5f; color: white; padding: 12px 20px; border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.35); text-align: center; max-width: 90%;
+  }
+  #quiz-banner .question { font-size: 1.05rem; font-weight: 700; }
+  #quiz-banner .result { margin-top: 6px; font-size: .95rem; min-height: 1.3em; }
+  #quiz-banner .result.good { color: #7dff9a; }
+  #quiz-banner .result.ok { color: #ffd97d; }
+  #quiz-banner .result.bad { color: #ff8a8a; }
+  #quiz-banner .score { margin-top: 4px; font-size: .8rem; color: #bcd3ea; }
+
+  #score-panel {
+    display: none; position: absolute; bottom: 20px; right: 20px; z-index: 900;
+    background: white; border-radius: 10px; padding: 12px 16px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.25); font-size: .85rem;
+  }
+  #score-panel h3 { font-size: .95rem; margin-bottom: 6px; color: #1e3a5f; }
+
+  .legend {
+    background: white; border-radius: 8px; padding: 8px 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.2); font-size: .78rem; line-height: 1.7;
+  }
+  .legend .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+
+  .popup-title { font-size: 1rem; font-weight: 700; color: #1e3a5f; margin-bottom: 3px; }
+  .popup-info { font-size: .82rem; color: #444; }
+
+  .ocean-label {
+    color: #1565c0; font-weight: 700; font-size: .95rem; text-shadow:
+      -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌍 Geografie-Lernkarte Nordamerika – die 58 Begriffe</h1>
+  <div>
+    <button class="btn active" id="btn-A" onclick="toggleLayer('A')">A Großräume</button>
+    <button class="btn active" id="btn-B" onclick="toggleLayer('B')">B Gewässer</button>
+    <button class="btn active" id="btn-C" onclick="toggleLayer('C')">C Meere</button>
+    <button class="btn active" id="btn-D" onclick="toggleLayer('D')">D Gebirge</button>
+    <button class="btn active" id="btn-E" onclick="toggleLayer('E')">E Städte</button>
+  </div>
+  <button class="btn" id="btn-quiz" onclick="toggleQuiz()">🎯 Quiz</button>
+</header>
+
+<div id="map"></div>
+
+<div id="quiz-banner">
+  <div class="question" id="quiz-question"></div>
+  <div class="result" id="quiz-result"></div>
+  <div class="score" id="quiz-score"></div>
+</div>
+
+<div id="score-panel">
+  <h3>📊 Quiz-Ergebnis</h3>
+  <div>Richtig (✓): <b id="sc-good">0</b></div>
+  <div>Knapp: <b id="sc-ok">0</b></div>
+  <div>Daneben: <b id="sc-bad">0</b></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ================= A) GRÖSSRÄUME =================
+const GROSSRAEUME = [
+  { name:"Great Plains", koord:[42.0,-100.0], poly:[[49.0,-104.0],[49.0,-100.0],[42.0,-97.0],[36.0,-99.5],[33.5,-101.5],[36.5,-105.5],[43.0,-106.0],[49.0,-106.0]] },
+  { name:"Labrador", koord:[54.0,-62.0], poly:[[60.0,-67.0],[58.0,-63.5],[54.5,-58.5],[52.0,-57.5],[51.5,-62.0],[53.5,-67.5],[57.5,-70.0],[60.5,-69.0]] },
+  { name:"Grosses Becken (Great Basin)", koord:[40.0,-117.0], poly:[[42.0,-121.0],[41.5,-117.0],[39.0,-114.5],[37.0,-115.0],[36.5,-118.0],[39.5,-120.5],[41.5,-120.5]] },
+  { name:"Colorado-Plateau", koord:[37.0,-110.5], poly:[[40.0,-111.5],[38.5,-108.0],[36.0,-108.5],[35.0,-111.5],[37.5,-114.5],[39.5,-112.5]] },
+  { name:"Florida", koord:[27.9,-81.5], poly:[[30.8,-84.5],[29.0,-82.5],[27.0,-80.5],[25.2,-80.6],[25.0,-82.0],[27.0,-83.0],[29.5,-85.0],[31.0,-85.0]] },
+  { name:"Kalifornien", koord:[36.5,-119.5], poly:[[42.0,-124.0],[40.0,-124.0],[36.0,-121.8],[34.0,-120.5],[32.5,-117.2],[35.0,-114.5],[37.5,-119.0],[40.0,-121.5]] },
+  { name:"Death Valley", koord:[36.5,-117.1], info:"Hitzepol: 56,7 °C – heißester Ort der Erde" },
+  { name:"Everglades", koord:[25.9,-80.9], info:"Tropisches Feuchtgebiet im Süden Floridas" },
+  { name:"Aleuten-Bogen", koord:[53.0,-168.0], poly:[[55.5,-163.5],[53.0,-168.5],[52.0,-174.0],[51.5,-179.0],[53.5,-179.5],[55.0,-171.0],[56.5,-165.0]] },
+  { name:"Baffin-Insel", koord:[68.0,-72.0], poly:[[71.5,-78.0],[70.5,-70.0],[67.0,-62.0],[64.5,-66.5],[65.5,-74.5],[68.0,-80.0]] },
+  { name:"Neufundland", koord:[48.7,-56.0], poly:[[51.5,-58.0],[49.5,-53.5],[46.9,-56.0],[47.5,-59.5],[50.0,-58.5]] },
+  { name:"Kanadischer Schild", koord:[58.0,-100.0], poly:[[67.0,-115.0],[64.0,-95.0],[60.0,-78.0],[55.0,-78.5],[51.5,-79.5],[50.0,-95.0],[56.0,-110.0],[62.0,-125.0],[67.0,-125.0]] },
+  { name:"Hochland von Mexiko", koord:[20.5,-101.0], poly:[[25.5,-105.0],[24.0,-99.5],[19.5,-98.0],[18.0,-100.5],[19.5,-103.5],[22.5,-105.5]] },
+];
+
+// ================= B) GEWÄSSER =================
+const GEWAESSER = [
+  { name:"Mississippi", path:[[47.2,-95.2],[43.5,-91.3],[41.4,-90.4],[38.6,-90.2],[35.1,-90.1],[32.3,-90.9],[29.2,-89.6]] },
+  { name:"Missouri", path:[[45.9,-111.5],[48.0,-104.5],[46.9,-100.5],[44.4,-99.0],[41.8,-96.1],[38.8,-90.2]] },
+  { name:"Ohio", path:[[40.7,-80.0],[39.1,-81.5],[38.7,-83.0],[38.3,-86.2],[37.0,-88.6]] },
+  { name:"Rio Grande", path:[[37.8,-107.5],[36.7,-106.3],[34.6,-106.6],[31.8,-107.4],[29.5,-101.4],[26.1,-98.1]] },
+  { name:"Colorado", path:[[40.5,-105.8],[39.1,-108.5],[36.9,-111.5],[36.0,-112.0],[34.3,-114.6],[32.7,-114.6]] },
+  { name:"Mackenzie", path:[[55.0,-113.5],[58.5,-114.5],[61.5,-114.0],[65.0,-121.5],[67.5,-134.8]] },
+  { name:"St.-Lorenz-Strom", path:[[45.5,-73.6],[46.2,-74.9],[47.3,-79.5],[48.5,-81.5]] },
+  { name:"Grosser Bärensee", koord:[66.0,-121.0], poly:[[67.0,-126.5],[66.0,-121.5],[65.2,-116.0],[66.5,-116.5],[67.0,-121.0]] },
+  { name:"Grosser Sklavensee", koord:[61.5,-114.0], poly:[[62.5,-117.0],[61.5,-113.5],[61.0,-110.5],[62.0,-111.0],[63.0,-115.0]] },
+  { name:"Winnipegsee", koord:[52.5,-97.8], poly:[[53.5,-98.5],[52.8,-97.0],[52.2,-96.7],[51.5,-97.5],[52.3,-99.0]] },
+  { name:"Oberer See (Lake Superior)", koord:[47.7,-87.5], poly:[[48.8,-92.1],[47.8,-91.3],[46.5,-89.5],[46.5,-87.0],[47.5,-85.5],[48.8,-88.0]] },
+];
+
+// ================= C) MEERESTEILE =================
+const MEERE = [
+  { name:"Golf von Mexiko", koord:[25.0,-90.0] },
+  { name:"Golf von Kalifornien", koord:[28.0,-112.0] },
+  { name:"Beringstrasse", koord:[65.8,-169.0] },
+  { name:"Hudson Bay", koord:[59.0,-85.0] },
+  { name:"Davis Strasse", koord:[65.5,-60.0] },
+  { name:"Beaufort-See", koord:[71.5,-135.0] },
+  { name:"Golf von Alaska", koord:[57.0,-145.0] },
+  { name:"Pazifischer Ozean", koord:[15.0,-135.0], big:true },
+  { name:"Atlantischer Ozean", koord:[25.0,-55.0], big:true },
+];
+
+// ================= D) GEBIRGE =================
+const GEBIRGE = [
+  { name:"Rocky Mountains", koord:[43.0,-110.0], poly:[[49.0,-114.0],[49.0,-106.0],[43.0,-105.5],[39.0,-106.5],[35.0,-107.5],[35.0,-111.0],[40.0,-113.0],[46.0,-114.5]] },
+  { name:"Appalachen", koord:[39.5,-79.0], poly:[[34.8,-84.5],[36.5,-82.5],[39.0,-79.0],[42.0,-74.5],[44.5,-71.0],[46.0,-69.5],[45.5,-72.5],[42.5,-76.0],[39.5,-80.5],[36.0,-83.5]] },
+  { name:"Sierra Madre Occidental (West)", koord:[25.0,-106.5], poly:[[30.5,-108.5],[26.5,-106.0],[22.5,-105.0],[21.5,-104.5],[23.5,-106.5],[27.5,-108.5]] },
+  { name:"Sierra Madre Oriental (Ost)", koord:[23.5,-99.5], poly:[[27.5,-100.5],[25.5,-99.0],[21.5,-98.0],[19.5,-97.5],[20.5,-99.5],[24.0,-101.0]] },
+  { name:"Küstenkette (Cascade Range / Coast Mountains)", koord:[46.5,-121.8], poly:[[49.5,-123.5],[46.0,-121.5],[41.5,-122.5],[40.5,-120.5],[44.0,-120.5],[48.5,-123.5]] },
+  { name:"Sierra Nevada", koord:[37.5,-119.0], poly:[[40.0,-121.5],[39.0,-120.5],[37.0,-119.0],[35.5,-118.5],[35.7,-120.5],[38.5,-121.5]] },
+  { name:"Brookskette", koord:[69.0,-152.0], poly:[[71.0,-157.0],[69.0,-152.5],[67.5,-146.5],[68.5,-144.0],[70.0,-149.5]] },
+];
+
+// ================= E) STÄDTE =================
+const STAEDTE = [
+  { name:"New York", koord:[40.71,-74.01] },
+  { name:"Boston", koord:[42.36,-71.06] },
+  { name:"Montreal", koord:[45.50,-73.57] },
+  { name:"Ottawa", koord:[45.42,-75.70] },
+  { name:"Toronto", koord:[43.65,-79.38] },
+  { name:"Detroit", koord:[42.33,-83.05] },
+  { name:"Chicago", koord:[41.88,-87.63] },
+  { name:"St. Louis", koord:[38.63,-90.20] },
+  { name:"Memphis", koord:[35.15,-90.05] },
+  { name:"New Orleans", koord:[29.95,-90.07] },
+  { name:"Atlanta", koord:[33.75,-84.39] },
+  { name:"San Diego", koord:[32.72,-117.16] },
+  { name:"Los Angeles", koord:[34.05,-118.24] },
+  { name:"Las Vegas", koord:[36.17,-115.14] },
+  { name:"Salt Lake City", koord:[40.76,-111.89] },
+  { name:"San Francisco", koord:[37.77,-122.42] },
+  { name:"Seattle", koord:[47.61,-122.33] },
+  { name:"Vancouver", koord:[49.28,-123.12] },
+  { name:"Anchorage", koord:[61.22,-149.90] },
+];
+
+// ================= KARTE =================
+const map = L.map('map', { minZoom: 2 }).setView([48, -105], 3);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+}).addTo(map);
+
+const layers = { A: [], B: [], C: [], D: [], E: [] };
+const COLORS = { A:"#e65100", B:"#1e88e5", C:"#00838f", D:"#7b1fa2", E:"#c62828" };
+
+function labelIcon(text, color) {
+  return L.divIcon({
+    className: "",
+    html: `<div class="ocean-label" style="color:${color}">${text}</div>`,
+    iconSize: null, iconAnchor: [0, 8]
+  });
+}
+
+// A) Großräume
+GROSSRAEUME.forEach(g => {
+  let obj;
+  const popup = `<div class="popup-title">🌍 ${g.name}</div><div class="popup-info">${g.info || "Großraum / Naturregion"}</div>`;
+  if (g.poly) {
+    obj = L.polygon(g.poly, { color: COLORS.A, weight: 1.5, fillColor: COLORS.A, fillOpacity: .18 }).bindPopup(popup);
+  } else {
+    obj = L.circleMarker(g.koord, { radius: 9, color: COLORS.A, weight: 2, fillColor: COLORS.A, fillOpacity: .35 }).bindPopup(popup);
+  }
+  layers.A.push(obj); obj.addTo(map);
+});
+
+// B) Gewässer
+GEWAESSER.forEach(g => {
+  let obj;
+  if (g.path) {
+    const mid = g.path[Math.floor(g.path.length / 2)];
+    obj = L.polyline(g.path, { color: COLORS.B, weight: 4, opacity: .8 })
+      .bindPopup(`<div class="popup-title">🌊 ${g.name}</div><div class="popup-info">Fluss</div>`);
+    obj.quizPoint = mid;
+  } else {
+    obj = L.polygon(g.poly, { color: COLORS.B, weight: 1.5, fillColor: COLORS.B, fillOpacity: .3 })
+      .bindPopup(`<div class="popup-title">💧 ${g.name}</div><div class="popup-info">See</div>`);
+    obj.quizPoint = g.koord;
+  }
+  layers.B.push(obj); obj.addTo(map);
+});
+
+// C) Meeresteile (Text-Label + unsichtbarer Klick-Punkt)
+MEERE.forEach(m => {
+  const marker = L.marker(m.koord, { icon: labelIcon(m.name, COLORS.C) })
+    .bindPopup(`<div class="popup-title">🌊 ${m.name}</div><div class="popup-info">Meeresteil</div>`);
+  marker.quizPoint = m.koord;
+  layers.C.push(marker); marker.addTo(map);
+});
+
+// D) Gebirge
+GEBIRGE.forEach(g => {
+  const obj = L.polygon(g.poly, { color: COLORS.D, weight: 1.5, fillColor: COLORS.D, fillOpacity: .2 })
+    .bindPopup(`<div class="popup-title">⛰️ ${g.name}</div><div class="popup-info">Gebirge</div>`);
+  obj.quizPoint = g.koord;
+  layers.D.push(obj); obj.addTo(map);
+});
+
+// E) Städte
+const cityIcon = L.divIcon({
+  className: "",
+  html: `<div style="width:12px;height:12px;background:${COLORS.E};border:2px solid white;border-radius:50%;box-shadow:0 0 4px rgba(0,0,0,.5)"></div>`,
+  iconSize: [12,12], iconAnchor: [6,6]
+});
+STAEDTE.forEach(s => {
+  const m = L.marker(s.koord, { icon: cityIcon })
+    .bindPopup(`<div class="popup-title">🏙️ ${s.name}</div><div class="popup-info">Stadt</div>`);
+  layers.E.push(m); m.addTo(map);
+});
+
+// Legende
+const legend = L.control({ position: "bottomleft" });
+legend.onAdd = () => {
+  const d = L.DomUtil.create("div", "legend");
+  d.innerHTML = `
+    <span class="dot" style="background:${COLORS.A}"></span>A) Großräume<br>
+    <span class="dot" style="background:${COLORS.B}"></span>B) Gewässer<br>
+    <span class="dot" style="background:${COLORS.C}"></span>C) Meeresteile<br>
+    <span class="dot" style="background:${COLORS.D}"></span>D) Gebirge<br>
+    <span class="dot" style="background:${COLORS.E}"></span>E) Städte`;
+  return d;
+};
+legend.addTo(map);
+
+// ================= LAYER-FILTER =================
+function toggleLayer(key) {
+  const btn = document.getElementById("btn-" + key);
+  btn.classList.toggle("active");
+  const on = btn.classList.contains("active");
+  layers[key].forEach(o => on ? o.addTo(map) : map.removeLayer(o));
+}
+
+// ================= QUIZ =================
+let quizActive = false, current = null, locked = false;
+const score = { good: 0, ok: 0, bad: 0, total: 0 };
+
+function quizPool() {
+  const pool = [];
+  GROSSRAEUME.forEach(g => pool.push({ name: g.name, koord: g.koord, art: "der Großraum" }));
+  GEWAESSER.forEach(g => pool.push({ name: g.name, koord: g.path ? g.path[Math.floor(g.path.length/2)] : g.koord, art: g.path ? "der Fluss" : "der See" }));
+  MEERE.forEach(m => pool.push({ name: m.name, koord: m.koord, art: "der Meeresteil" }));
+  GEBIRGE.forEach(g => pool.push({ name: g.name, koord: g.koord, art: "das Gebirge" }));
+  STAEDTE.forEach(s => pool.push({ name: s.name, koord: s.koord, art: "die Stadt" }));
+  return pool;
+}
+
+function toggleQuiz() {
+  quizActive = !quizActive;
+  document.getElementById("btn-quiz").classList.toggle("active", quizActive);
+  document.getElementById("btn-quiz").textContent = quizActive ? "⏹️ Quiz beenden" : "🎯 Quiz";
+  document.getElementById("quiz-banner").style.display = quizActive ? "block" : "none";
+  document.getElementById("score-panel").style.display = quizActive ? "block" : "none";
+  if (quizActive) nextQuestion();
+  else { current = null; document.getElementById("quiz-result").textContent = ""; }
+}
+
+function nextQuestion() {
+  const pool = quizPool();
+  current = pool[Math.floor(Math.random() * pool.length)];
+  locked = false;
+  document.getElementById("quiz-question").textContent = `Wo liegt ${current.art} „${current.name}“? Klicke auf die Karte!`;
+  document.getElementById("quiz-result").textContent = "";
+  document.getElementById("quiz-score").textContent = `Frage ${score.total + 1} von 58 möglichen Begriffen`;
+}
+
+map.on("click", e => {
+  if (!quizActive || locked || !current) return;
+  locked = true;
+  const dist = map.distance(e.latlng, L.latLng(current.koord)) / 1000;
+  const res = document.getElementById("quiz-result");
+  let cls, msg;
+  if (dist < 80) { cls = "good"; msg = `✅ Richtig! Nur ${Math.round(dist)} km von ${current.name} entfernt.`; score.good++; }
+  else if (dist < 300) { cls = "ok"; msg = `🙂 Knapp! ${Math.round(dist)} km von ${current.name} entfernt.`; score.ok++; }
+  else { cls = "bad"; msg = `❌ Weit daneben (${Math.round(dist)} km). ${current.name} liegt hier:`; score.bad++; }
+  res.className = "result " + cls;
+  res.textContent = msg;
+  score.total++;
+  document.getElementById("sc-good").textContent = score.good;
+  document.getElementById("sc-ok").textContent = score.ok;
+  document.getElementById("sc-bad").textContent = score.bad;
+
+  L.circleMarker(current.koord, { radius: 10, color: "#000", fillColor: "#ffd600", fillOpacity: 1 })
+    .addTo(map).bindPopup(`<b>${current.name}</b>`).openPopup();
+  setTimeout(nextQuestion, 2500);
+});
+</script>
+</body>
+</html>
