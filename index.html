@@ -306,13 +306,23 @@ function toggleLayer(key) {
   const btn = document.getElementById("btn-" + key);
   btn.classList.toggle("active");
   const on = btn.classList.contains("active");
-  layers[key].forEach(o => on ? o.addTo(map) : map.removeLayer(o));
+  layers[key].forEach(o => {
+    if (!on) { map.removeLayer(o); return; }
+    if (o.isSeaLabel && (!labelsOn || quizActive)) return;  // Meer-Namen nur wenn Namen an
+    o.addTo(map);
+    if (!labelsOn || quizActive) o.closeTooltip();
+  });
 }
 
 function setLabels(on) {
   Object.values(layers).flat().forEach(o => {
-    if (o.isSeaLabel) { on ? o.addTo(map) : map.removeLayer(o); }
-    else if (on) o.openTooltip(); else o.closeTooltip();
+    if (o.isSeaLabel) {
+      if (on && catActive("C")) o.addTo(map);
+      else map.removeLayer(o);
+    } else {
+      if (!map.hasLayer(o)) return;
+      if (on) o.openTooltip(); else o.closeTooltip();
+    }
   });
 }
 
