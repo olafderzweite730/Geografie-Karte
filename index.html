@@ -65,10 +65,6 @@
   }
   #score-panel h3 { font-size: .95rem; margin-bottom: 6px; color: #1e3a5f; }
 
-  #quiz-overlay {
-    display: none; position: absolute; inset: 0; z-index: 999;
-    cursor: crosshair;
-  }
 
   .legend {
     background: white; border-radius: 8px; padding: 8px 12px;
@@ -119,7 +115,6 @@
     <div>Knapp: <b id="sc-ok">0</b></div>
     <div>Daneben: <b id="sc-bad">0</b></div>
   </div>
-  <div id="quiz-overlay"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -336,7 +331,19 @@ function toggleLabels() {
 // ================= QUIZ =================
 let quizActive = false, current = null, locked = false, answerMarker = null;
 const score = { good: 0, ok: 0, bad: 0, total: 0 };
-const overlay = document.getElementById("quiz-overlay");
+
+// Layer klick-durchlaessig schalten (ohne Overlay, damit Ziehen/Zoomen normal funktioniert)
+function setLayersInteractive(on) {
+  Object.values(layers).flat().forEach(o => {
+    if (o.options.interactive === on) return;
+    o.options.interactive = on;
+    if (map.hasLayer(o)) {
+      map.removeLayer(o);
+      o.addTo(map);
+      if (!on || (!labelsOn && !quizActive)) o.closeTooltip();
+    }
+  });
+}
 
 function catActive(key) {
   return document.getElementById("btn-" + key).classList.contains("active");
@@ -359,11 +366,12 @@ function toggleQuiz() {
   document.getElementById("quiz-banner").style.display = quizActive ? "block" : "none";
   document.getElementById("score-panel").style.display = quizActive ? "block" : "none";
   if (quizActive) {
+    setLayersInteractive(false);
     setLabels(false);
     nextQuestion();
   } else {
-    overlay.style.display = "none";
     if (answerMarker) { map.removeLayer(answerMarker); answerMarker = null; }
+    setLayersInteractive(true);
     setLabels(labelsOn);
     document.getElementById("quiz-result").textContent = "";
     current = null;
@@ -373,7 +381,6 @@ function toggleQuiz() {
 function nextQuestion() {
   const pool = quizPool();
   if (answerMarker) { map.removeLayer(answerMarker); answerMarker = null; }
-  overlay.style.display = "none";
   if (!pool.length) {
     current = null;
     document.getElementById("quiz-question").textContent = "⚠️ Keine Kategorie aktiv – bitte oben mind. eine (A–E) aktivieren!";
@@ -384,7 +391,6 @@ function nextQuestion() {
   current = pool[Math.floor(Math.random() * pool.length)];
   locked = false;
   setLabels(false);
-  overlay.style.display = "block";
   document.getElementById("quiz-question").textContent = `Wo liegt ${current.art} „${current.name}“? Klicke auf die Karte!`;
   document.getElementById("quiz-result").textContent = "";
   document.getElementById("quiz-score").textContent = `Frage ${score.total + 1} · ${score.good + score.ok + score.bad} beantwortet`;
@@ -393,7 +399,6 @@ function nextQuestion() {
 function handleAnswer(latlng) {
   if (!quizActive || locked || !current) return;
   locked = true;
-  overlay.style.display = "none";
   const dist = map.distance(latlng, L.latLng(current.koord)) / 1000;
   const res = document.getElementById("quiz-result");
   let cls, msg;
@@ -415,11 +420,7 @@ function handleAnswer(latlng) {
   setTimeout(() => { if (quizActive) nextQuestion(); }, 3200);
 }
 
-overlay.addEventListener("click", e => {
-  const rect = map.getContainer().getBoundingClientRect();
-  const latlng = map.containerPointToLatLng(L.point(e.clientX - rect.left, e.clientY - rect.top));
-  handleAnswer(latlng);
-});
+map.on("click", e => handleAnswer(e.latlng));
 
 // ================= SUCHE =================
 const CAT_NAMES = { A:"Großraum", B:"Gewässer", C:"Meeresteil", D:"Gebirge", E:"Stadt" };
