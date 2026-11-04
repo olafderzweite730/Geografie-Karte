@@ -16,6 +16,26 @@
   }
   header h1 { font-size: 1.05rem; margin-right: auto; }
 
+  #search-wrap { position: relative; display: inline-block; }
+  #search-box {
+    border: none; border-radius: 6px; padding: 7px 12px; font-size: .8rem;
+    width: 160px; outline: none;
+  }
+  #search-results {
+    display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 1300;
+    background: white; border-radius: 8px; min-width: 230px; max-height: 300px; overflow-y: auto;
+    box-shadow: 0 6px 18px rgba(0,0,0,.3);
+  }
+  #search-results .item {
+    padding: 8px 12px; font-size: .82rem; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid #eee; color: #222;
+  }
+  #search-results .item:hover { background: #e3f2fd; }
+  #search-results .cat {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none;
+  }
+  #search-results .small { color: #888; font-size: .72rem; margin-left: auto; }
+
   .btn {
     border: none; border-radius: 6px; padding: 7px 12px; cursor: pointer;
     font-size: .8rem; font-weight: 600; background: #ffffff22; color: white;
@@ -78,7 +98,11 @@
     <button class="btn active" id="btn-C" onclick="toggleLayer('C')">C Meere</button>
     <button class="btn active" id="btn-D" onclick="toggleLayer('D')">D Gebirge</button>
     <button class="btn active" id="btn-E" onclick="toggleLayer('E')">E Städte</button>
-    <button class="btn active" id="btn-labels" onclick="toggleLabels()">🏷️ Namen</button>
+    <button class="btn" id="btn-labels" onclick="toggleLabels()">🏷️ Namen</button>
+    <div id="search-wrap">
+      <input type="text" id="search-box" placeholder="🔍 Suchen..." oninput="doSearch(this.value)" onkeydown="if(event.key==='Enter')searchSelect(0)" autocomplete="off">
+      <div id="search-results"></div>
+    </div>
   </div>
   <button class="btn" id="btn-quiz" onclick="toggleQuiz()">🎯 Quiz</button>
 </header>
@@ -188,7 +212,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 const layers = { A: [], B: [], C: [], D: [], E: [] };
 const COLORS = { A:"#e65100", B:"#1e88e5", C:"#00838f", D:"#7b1fa2", E:"#c62828" };
-let labelsOn = true;
+let labelsOn = false;
 
 function addLabel(obj, text, color) {
   obj.bindTooltip(text, { permanent: true, direction: "center", className: "term-label" });
@@ -374,6 +398,52 @@ overlay.addEventListener("click", e => {
   const latlng = map.containerPointToLatLng(L.point(e.clientX - rect.left, e.clientY - rect.top));
   handleAnswer(latlng);
 });
+
+// ================= SUCHE =================
+const CAT_NAMES = { A:"Großraum", B:"Gewässer", C:"Meeresteil", D:"Gebirge", E:"Stadt" };
+const searchIndex = [];
+GROSSRAEUME.forEach((g,i) => searchIndex.push({ name: g.name, cat: "A", koord: g.koord, obj: layers.A[i] }));
+GEWAESSER.forEach((g,i) => searchIndex.push({ name: g.name, cat: "B", koord: g.path ? g.path[Math.floor(g.path.length/2)] : g.koord, obj: layers.B[i] }));
+MEERE.forEach((m,i) => searchIndex.push({ name: m.name, cat: "C", koord: m.koord, obj: layers.C[i] }));
+GEBIRGE.forEach((g,i) => searchIndex.push({ name: g.name, cat: "D", koord: g.koord, obj: layers.D[i] }));
+STAEDTE.forEach((s,i) => searchIndex.push({ name: s.name, cat: "E", koord: s.koord, obj: layers.E[i] }));
+let searchMatches = [], searchHL = null;
+
+function doSearch(q) {
+  const box = document.getElementById("search-results");
+  q = q.trim().toLowerCase();
+  if (q.length < 2) { box.style.display = "none"; searchMatches = []; return; }
+  searchMatches = searchIndex.filter(t => t.name.toLowerCase().includes(q)).slice(0, 12);
+  box.innerHTML = searchMatches.length
+    ? searchMatches.map((t,i) => `<div class="item" onclick="searchSelect(${i})"><span class="cat" style="background:${COLORS[t.cat]}"></span>${t.name}<span class="small">${CAT_NAMES[t.cat]}</span></div>`).join("")
+    : `<div class="item" style="color:#888">Kein Treffer</div>`;
+  box.style.display = "block";
+}
+
+function searchSelect(i) {
+  const t = searchMatches[i]; if (!t) return;
+  document.getElementById("search-results").style.display = "none";
+  document.getElementById("search-box").value = t.name;
+  if (quizActive) toggleQuiz();
+  if (t.obj.isSeaLabel) t.obj.addTo(map); else t.obj.openTooltip();
+  if (searchHL) map.removeLayer(searchHL);
+  searchHL = L.circleMarker(t.koord, { radius: 10, color: "#000", fillColor: "#ffd600", fillOpacity: 1 })
+    .addTo(map).bindTooltip(t.name, { permanent: true, direction: "top", className: "term-label" }).openTooltip();
+  map.flyTo(t.koord, 5, { duration: 1 });
+  setTimeout(() => {
+    if (searchHL) { map.removeLayer(searchHL); searchHL = null; }
+    if (!labelsOn && !quizActive) { if (t.obj.isSeaLabel) map.removeLayer(t.obj); else t.obj.closeTooltip(); }
+  }, 4000);
+}
+
+document.addEventListener("click", e => {
+  if (!document.getElementById("search-wrap").contains(e.target)) {
+    document.getElementById("search-results").style.display = "none";
+  }
+});
+
+// Beim Start: Namen ausblenden – nur Flächen und Punkte zeigen
+setLabels(false);
 </script>
 </body>
 </html>
