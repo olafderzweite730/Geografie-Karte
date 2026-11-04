@@ -113,6 +113,7 @@
     <div class="question" id="quiz-question"></div>
     <div class="result" id="quiz-result"></div>
     <div class="score" id="quiz-score"></div>
+    <button class="btn" id="btn-drawtool" onclick="toggleDrawTool()" style="display:none">✋ Karte bewegen</button>
   </div>
   <div id="score-panel">
     <h3>📊 Quiz-Ergebnis</h3>
@@ -463,7 +464,28 @@ map.on("click", e => {
 
 // ================= ZEICHNEN-MODUS =================
 let drawActive = false, drawPhase = "idle", drawing = false, drawPts = [];
-let drawLine = null, userPoly = null, solPoly = null;
+let drawLine = null, userPoly = null, solPoly = null, drawTool = "paint";
+
+function applyDrawTool() {
+  if (!drawActive) return;
+  const btn = document.getElementById("btn-drawtool");
+  btn.style.display = "inline-block";
+  if (drawTool === "paint") {
+    btn.textContent = "✋ Karte bewegen";
+    map.dragging.disable();
+    map.getContainer().classList.add("drawing");
+  } else {
+    btn.textContent = "✏️ Malen";
+    drawing = false;
+    map.dragging.enable();
+    map.getContainer().classList.remove("drawing");
+  }
+}
+
+function toggleDrawTool() {
+  drawTool = drawTool === "paint" ? "pan" : "paint";
+  applyDrawTool();
+}
 
 function drawPool() {
   const pool = [];
@@ -482,11 +504,14 @@ function toggleDraw() {
     if (quizActive) toggleQuiz();
     setLayersInteractive(false);
     Object.values(layers).flat().forEach(o => map.removeLayer(o));
-    map.dragging.disable();
+    drawTool = "paint";
+    applyDrawTool();
     nextDrawTerm();
   } else {
     clearDrawLayers();
     map.dragging.enable();
+    document.getElementById("btn-drawtool").style.display = "none";
+    map.getContainer().classList.remove("drawing");
     document.getElementById("quiz-banner").style.display = "none";
     setLayersInteractive(true);
     ["A","B","C","D","E"].forEach(k => {
@@ -518,12 +543,12 @@ function nextDrawTerm() {
   currentDraw = t;
   document.getElementById("quiz-question").textContent = `✏️ Zeichne ${t.art} „${t.name}“ – mit gedrückter Maus/Finger flächig malen!`;
   document.getElementById("quiz-result").textContent = "";
-  document.getElementById("quiz-score").textContent = "Bei Fertigstellung loslassen – Klick danach = nächste Aufgabe";
+  document.getElementById("quiz-score").textContent = "Loslassen = bewerten · ✋-Taste = Karte bewegen/zoomen";
 }
 let currentDraw = null;
 
 function drawStart(latlng) {
-  if (!drawActive || drawPhase !== "draw") return;
+  if (!drawActive || drawPhase !== "draw" || drawTool !== "paint") return;
   drawing = true;
   drawPts = [latlng];
   if (drawLine) map.removeLayer(drawLine);
@@ -590,13 +615,15 @@ map.on("mouseup", drawEnd);
 const mapContainer = map.getContainer();
 mapContainer.addEventListener("touchstart", e => {
   if (!drawActive) return;
+  if (e.touches.length > 1) { drawing = false; if (drawLine) { map.removeLayer(drawLine); drawLine = null; } return; }
+  if (drawTool !== "paint") return;
   e.preventDefault();
   const rect = mapContainer.getBoundingClientRect();
   const t = e.touches[0];
   drawStart(map.containerPointToLatLng(L.point(t.clientX - rect.left, t.clientY - rect.top)));
 }, { passive: false });
 mapContainer.addEventListener("touchmove", e => {
-  if (!drawActive) return;
+  if (!drawActive || drawTool !== "paint" || e.touches.length > 1) return;
   e.preventDefault();
   const rect = mapContainer.getBoundingClientRect();
   const t = e.touches[0];
