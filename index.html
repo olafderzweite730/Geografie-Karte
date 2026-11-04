@@ -113,6 +113,7 @@
     <div class="question" id="quiz-question"></div>
     <div class="result" id="quiz-result"></div>
     <div class="score" id="quiz-score"></div>
+    <button class="btn" id="btn-nextdraw" onclick="nextDrawTerm()" style="display:none">➡️ Nächste Aufgabe</button>
   </div>
   <div id="score-panel">
     <h3>📊 Quiz-Ergebnis</h3>
@@ -457,7 +458,7 @@ function handleAnswer(latlng) {
 }
 
 map.on("click", e => {
-  if (drawActive) { if (drawPhase === "result") nextDrawTerm(); return; }
+  if (drawActive) return;  // Im Zeichnen-Modus startet nur der "Nächste"-Button die nächste Aufgabe
   handleAnswer(e.latlng);
 });
 
@@ -511,6 +512,7 @@ function clearDrawLayers() {
 
 function nextDrawTerm() {
   clearDrawLayers();
+  document.getElementById("btn-nextdraw").style.display = "none";
   const pool = drawPool();
   drawPhase = "draw";
   if (!pool.length) {
@@ -560,7 +562,7 @@ function moveHold(cp, latlng) {
 function drawMove(latlng) {
   if (!drawing || !drawLine) return;
   const last = drawPts[drawPts.length - 1];
-  if (last && map.distance(last, latlng) < 30000) return; // min. ~30 km Abstand
+  if (last && map.latLngToContainerPoint(last).distanceTo(map.latLngToContainerPoint(latlng)) < 4) return;
   drawPts.push(latlng);
   drawLine.setLatLngs(drawPts);
 }
@@ -571,7 +573,6 @@ function drawEnd() {
   map.getContainer().classList.remove("drawing");
   if (!drawing) return;
   drawing = false;
-  suppressNextUntil = Date.now() + 500;
   if (drawPts.length < 3) { drawPts = []; if (drawLine) map.removeLayer(drawLine); drawLine = null; return; }
   drawPhase = "result";
   const ring = drawPts.map(p => [p.lat, p.lng]);
@@ -604,7 +605,8 @@ function evaluateDraw(userRing, t) {
   else { cls = "bad"; msg = `❓ ${pct}% – schau dir die grüne Fläche an: So liegt ${t.name}.`; }
   res.className = "result " + cls;
   res.textContent = msg;
-  document.getElementById("quiz-score").textContent = "Klick auf die Karte = nächste Aufgabe";
+  document.getElementById("quiz-score").textContent = "Vergleiche rot (deine Zeichnung) mit grün (Lösung) – frei zoomen/schieben!";
+  document.getElementById("btn-nextdraw").style.display = "inline-block";
 
   solPoly = L.polygon(sol, { color: "#2e7d32", weight: 3, fillOpacity: .25 }).addTo(map);
   const el = solPoly.getElement();
