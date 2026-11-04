@@ -359,12 +359,21 @@ function catActive(key) {
   return document.getElementById("btn-" + key).classList.contains("active");
 }
 
+function pointInPoly(lat, lng, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const yi = ring[i][0], xi = ring[i][1], yj = ring[j][0], xj = ring[j][1];
+    if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
 function quizPool() {
   const pool = [];
-  if (catActive("A")) GROSSRAEUME.forEach(g => pool.push({ name: g.name, koord: g.koord, art: "der Großraum" }));
-  if (catActive("B")) GEWAESSER.forEach(g => pool.push({ name: g.name, koord: g.path ? g.path[Math.floor(g.path.length/2)] : g.koord, art: g.path ? "der Fluss" : "der See" }));
+  if (catActive("A")) GROSSRAEUME.forEach(g => pool.push({ name: g.name, koord: g.koord, art: "der Großraum", poly: g.poly }));
+  if (catActive("B")) GEWAESSER.forEach(g => pool.push({ name: g.name, koord: g.path ? g.path[Math.floor(g.path.length/2)] : g.koord, art: g.path ? "der Fluss" : "der See", poly: g.poly, path: g.path }));
   if (catActive("C")) MEERE.forEach(m => pool.push({ name: m.name, koord: m.koord, art: "der Meeresteil" }));
-  if (catActive("D")) GEBIRGE.forEach(g => pool.push({ name: g.name, koord: g.koord, art: "das Gebirge" }));
+  if (catActive("D")) GEBIRGE.forEach(g => pool.push({ name: g.name, koord: g.koord, art: "das Gebirge", poly: g.poly }));
   if (catActive("E")) STAEDTE.forEach(s => pool.push({ name: s.name, koord: s.koord, art: "die Stadt" }));
   return pool;
 }
@@ -409,12 +418,23 @@ function nextQuestion() {
 function handleAnswer(latlng) {
   if (!quizActive || locked || !current) return;
   locked = true;
-  const dist = map.distance(latlng, L.latLng(current.koord)) / 1000;
   const res = document.getElementById("quiz-result");
-  let cls, msg;
-  if (dist < 80) { cls = "good"; msg = `✅ Richtig! Nur ${Math.round(dist)} km von ${current.name} entfernt.`; score.good++; }
-  else if (dist < 300) { cls = "ok"; msg = `🙂 Knapp! ${Math.round(dist)} km von ${current.name} entfernt.`; score.ok++; }
-  else { cls = "bad"; msg = `❌ Weit daneben (${Math.round(dist)} km). ${current.name} liegt hier:`; score.bad++; }
+  let cls, msg, dist;
+  if (current.poly && pointInPoly(latlng.lat, latlng.lng, current.poly)) {
+    dist = 0;
+    cls = "good"; msg = `✅ Richtig! Das war ${current.name} – genau im Gebiet.`; score.good++;
+  } else if (current.path) {
+    const minDist = Math.min(...current.path.map(p => map.distance(latlng, L.latLng(p)))) / 1000;
+    dist = minDist;
+    if (minDist < 120) { cls = "good"; msg = `✅ Richtig! Du hast ${current.name} getroffen.`; score.good++; }
+    else if (minDist < 300) { cls = "ok"; msg = `🙂 Knapp! ${Math.round(minDist)} km von ${current.name} entfernt.`; score.ok++; }
+    else { cls = "bad"; msg = `❌ Weit daneben (${Math.round(minDist)} km). ${current.name} liegt hier:`; score.bad++; }
+  } else {
+    dist = map.distance(latlng, L.latLng(current.koord)) / 1000;
+    if (dist < 80) { cls = "good"; msg = `✅ Richtig! Nur ${Math.round(dist)} km von ${current.name} entfernt.`; score.good++; }
+    else if (dist < 300) { cls = "ok"; msg = `🙂 Knapp! ${Math.round(dist)} km von ${current.name} entfernt.`; score.ok++; }
+    else { cls = "bad"; msg = `❌ Weit daneben (${Math.round(dist)} km). ${current.name} liegt hier:`; score.bad++; }
+  }
   res.className = "result " + cls;
   res.textContent = msg;
   score.total++;
