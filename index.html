@@ -614,29 +614,32 @@ function evaluateDraw(userRing, t) {
   map.fitBounds(L.latLngBounds(sol).pad(1.2), { animate: true, maxZoom: 4 });
 }
 
-// Maus: gedrückt halten = zeichnen, kurzes Ziehen = Karte bewegen
-map.on("mousedown", e => startHold(e.containerPoint, e.latlng));
-map.on("mousemove", e => { if (drawActive) moveHold(e.containerPoint, e.latlng); });
-map.on("mouseup", () => { if (drawActive) drawEnd(); });
-// Touch: Finger ruhig halten = zeichnen, ziehen = Karte bewegen, 2 Finger = zoom
+// Zeichnen-Eingabe: Pointer Events (Finger, Maus, Stift) –
+// gedrückt halten = zeichnen, kurzes Ziehen = Karte bewegen, 2 Finger = zoom
 const mapContainer = map.getContainer();
-mapContainer.addEventListener("touchstart", e => {
+function cpFromEvent(e) {
+  const r = mapContainer.getBoundingClientRect();
+  return L.point(e.clientX - r.left, e.clientY - r.top);
+}
+mapContainer.addEventListener("pointerdown", e => {
   if (!drawActive) return;
-  if (e.touches.length > 1) { drawing = false; if (drawLine) { map.removeLayer(drawLine); drawLine = null; } drawEnd(); return; }
-  const rect = mapContainer.getBoundingClientRect();
-  const t = e.touches[0];
-  const cp = L.point(t.clientX - rect.left, t.clientY - rect.top);
+  if (!e.isPrimary) {  // zweiter Finger: Zeichnung abbrechen, Zoom uebernehmen
+    drawing = false;
+    if (drawLine) { map.removeLayer(drawLine); drawLine = null; }
+    drawEnd();
+    return;
+  }
+  const cp = cpFromEvent(e);
   startHold(cp, map.containerPointToLatLng(cp));
-}, { passive: true });
-mapContainer.addEventListener("touchmove", e => {
-  if (!drawActive || e.touches.length > 1) return;
-  const rect = mapContainer.getBoundingClientRect();
-  const t = e.touches[0];
-  const cp = L.point(t.clientX - rect.left, t.clientY - rect.top);
-  if (drawing) e.preventDefault();
+});
+mapContainer.addEventListener("pointermove", e => {
+  if (!drawActive || !e.isPrimary) return;
+  const cp = cpFromEvent(e);
   moveHold(cp, map.containerPointToLatLng(cp));
-}, { passive: false });
-mapContainer.addEventListener("touchend", e => { if (drawActive) drawEnd(); });
+});
+mapContainer.addEventListener("pointerup", () => { if (drawActive) drawEnd(); });
+mapContainer.addEventListener("pointercancel", () => { if (drawActive) drawEnd(); });
+mapContainer.addEventListener("contextmenu", e => { if (drawActive) e.preventDefault(); });
 
 // ================= SUCHE =================
 const CAT_NAMES = { A:"Großraum", B:"Gewässer", C:"Meeresteil", D:"Gebirge", E:"Stadt" };
