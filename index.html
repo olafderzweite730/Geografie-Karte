@@ -385,13 +385,13 @@ function quizPool() {
 }
 
 function toggleQuiz() {
+  if (drawActive) toggleDraw();  // Zeichnen-Modus zuerst sauber beenden (versteckt Banner kurz)
   quizActive = !quizActive;
   document.getElementById("btn-quiz").classList.toggle("active", quizActive);
   document.getElementById("btn-quiz").textContent = quizActive ? "⏹️ Quiz beenden" : "🎯 Quiz";
   document.getElementById("quiz-banner").style.display = quizActive ? "block" : "none";
   document.getElementById("score-panel").style.display = quizActive ? "block" : "none";
   if (quizActive) {
-    if (drawActive) toggleDraw();
     setLayersInteractive(false);
     setLabels(false);
     nextQuestion();
@@ -480,11 +480,11 @@ function drawPool() {
 
 function toggleDraw() {
   drawActive = !drawActive;
+  if (drawActive && quizActive) toggleQuiz();  // Quiz zuerst sauber beenden
   document.getElementById("btn-draw").classList.toggle("active", drawActive);
   document.getElementById("btn-draw").textContent = drawActive ? "⏹️ Zeichnen beenden" : "✏️ Zeichnen";
   document.getElementById("quiz-banner").style.display = drawActive ? "block" : "none";
   if (drawActive) {
-    if (quizActive) toggleQuiz();
     setLayersInteractive(false);
     Object.values(layers).flat().forEach(o => map.removeLayer(o));
     nextDrawTerm();
