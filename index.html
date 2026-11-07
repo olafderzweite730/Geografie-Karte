@@ -611,7 +611,7 @@ function evaluateDraw(userRing, t) {
   solPoly = L.polygon(sol, { color: "#2e7d32", weight: 3, fillOpacity: .25 }).addTo(map);
   const el = solPoly.getElement();
   if (el) el.classList.add("blink");
-  map.fitBounds(L.latLngBounds(sol).pad(0.3), { animate: true });
+  map.fitBounds(L.latLngBounds(sol).pad(1.2), { animate: true, maxZoom: 4 });
 }
 
 // Maus: gedrückt halten = zeichnen, kurzes Ziehen = Karte bewegen
