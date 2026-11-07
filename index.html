@@ -99,7 +99,6 @@
     <button class="btn active" id="btn-D" onclick="toggleLayer('D')">D Gebirge</button>
     <button class="btn active" id="btn-E" onclick="toggleLayer('E')">E Städte</button>
     <button class="btn" id="btn-labels" onclick="toggleLabels()">🏷️ Namen</button>
-    <button class="btn" id="btn-basemap" onclick="toggleBaseMap()">🗺️ Kartentext</button>
     <div id="search-wrap">
       <input type="text" id="search-box" placeholder="🔍 Suchen..." oninput="doSearch(this.value)" onkeydown="if(event.key==='Enter')searchSelect(0)" autocomplete="off">
       <div id="search-results"></div>
@@ -217,25 +216,10 @@ const map = L.map('map', {
   tapHold: false
 }).setView([48, -105], 3);
 map.zoomControl.setPosition("topright");
-
-// Blanker Kartenstil (ohne Städte-/Ortsnamen) + beschrifteter Stil als Umschalter
-const baseClean = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
-  maxZoom: 18, subdomains: 'abcd',
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO'
-});
-const baseLabels = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18,
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-});
-let baseTextOn = false;
-baseClean.addTo(map);
-function toggleBaseMap() {
-  const btn = document.getElementById("btn-basemap");
-  btn.classList.toggle("active");
-  baseTextOn = btn.classList.contains("active");
-  if (baseTextOn) { map.removeLayer(baseClean); baseLabels.addTo(map); }
-  else { map.removeLayer(baseLabels); baseClean.addTo(map); }
-}
+}).addTo(map);
 
 const layers = { A: [], B: [], C: [], D: [], E: [] };
 const COLORS = { A:"#e65100", B:"#1e88e5", C:"#00838f", D:"#7b1fa2", E:"#c62828" };
