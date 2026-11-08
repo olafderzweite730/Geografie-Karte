@@ -404,6 +404,30 @@ function toggleQuiz() {
   }
 }
 
+// ---------- Lern-Statistik (wird gespeichert) ----------
+const stats = JSON.parse(localStorage.getItem("geoStats") || "{}");
+function termStat(name) { return stats[name] || { good: 0, ok: 0, bad: 0, asked: 0 }; }
+function saveStats() { localStorage.setItem("geoStats", JSON.stringify(stats)); }
+const recentTerms = [];
+
+function pickWeighted(pool) {
+  const last = recentTerms.slice(-6);
+  let list = pool.filter(t => !last.includes(t.name));
+  if (!list.length) list = pool;
+  const weights = list.map(t => {
+    const s = termStat(t.name);
+    let w = 1;
+    if (s.asked === 0) w += 2;          // noch nie gefragt: eher drannehmen
+    w += 3 * s.bad + 1.5 * s.ok;          // falsch = oft, knapp = oefter
+    w -= 0.7 * s.good;                    // richtig = seltener
+    return Math.max(0.15, w);
+  });
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < list.length; i++) { r -= weights[i]; if (r <= 0) return list[i]; }
+  return list[list.length - 1];
+}
+
 function nextQuestion() {
   const pool = quizPool();
   if (answerMarker) { map.removeLayer(answerMarker); answerMarker = null; }
@@ -414,7 +438,9 @@ function nextQuestion() {
     document.getElementById("quiz-score").textContent = "";
     return;
   }
-  current = pool[Math.floor(Math.random() * pool.length)];
+  current = pickWeighted(pool);
+  recentTerms.push(current.name);
+  if (recentTerms.length > 12) recentTerms.shift();
   locked = false;
   setLabels(false);
   document.getElementById("quiz-question").textContent = `Wo liegt ${current.art} „${current.name}“? Klicke auf die Karte!`;
@@ -445,6 +471,11 @@ function handleAnswer(latlng) {
   res.className = "result " + cls;
   res.textContent = msg;
   score.total++;
+  const st = termStat(current.name);
+  st[cls === "good" ? "good" : cls === "ok" ? "ok" : "bad"]++;
+  st.asked++;
+  stats[current.name] = st;
+  saveStats();
   document.getElementById("sc-good").textContent = score.good;
   document.getElementById("sc-ok").textContent = score.ok;
   document.getElementById("sc-bad").textContent = score.bad;
