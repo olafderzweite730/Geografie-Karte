@@ -269,9 +269,10 @@ const map = L.map('map', {
   tapHold: false
 }).setView([42, 90], 3);
 map.zoomControl.setPosition("topright");
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 18,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+// Blanke "White Card" ohne Orts-/Städtenamen – nur die geografischen Formen
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
+  maxZoom: 18, subdomains: 'abcd',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CARTO'
 }).addTo(map);
 
 const layers = { A: [], B: [], C: [], D: [], E: [], F: [] };
